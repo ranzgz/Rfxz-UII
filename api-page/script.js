@@ -4,17 +4,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     body.classList.add("no-scroll");
 
     try {
+        // Load settings
         const settings = await fetch('/src/settings.json').then(res => res.json());
+        
+        // Auto-detect APIs from /src/api directory
+        const apiList = await fetch('/src/api/list').then(res => res.json())
+            .catch(() => ({ categories: [] })); // Fallback if API detection fails
 
+        // Merge detected APIs with settings
+        if (apiList.categories && apiList.categories.length > 0) {
+            settings.categories = apiList.categories;
+        }
+
+        // Helper function to set content
         const setContent = (id, property, value) => {
             const element = document.getElementById(id);
             if (element) element[property] = value;
         };
 
-        const randomImageSrc =
-            Array.isArray(settings.header.imageSrc) && settings.header.imageSrc.length > 0
-                ? settings.header.imageSrc[Math.floor(Math.random() * settings.header.imageSrc.length)]
-                : "";
+        // Set random image if available
+        const randomImageSrc = Array.isArray(settings.header.imageSrc) && settings.header.imageSrc.length > 0
+            ? settings.header.imageSrc[Math.floor(Math.random() * settings.header.imageSrc.length)]
+            : "";
 
         const dynamicImage = document.getElementById('dynamicImage');
         if (dynamicImage) {
@@ -24,11 +35,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             const setImageSize = () => {
                 const screenWidth = window.innerWidth;
                 if (screenWidth < 768) {
-                    dynamicImage.style.maxWidth = settings.header.imageSize.mobile || "80%";
+                    dynamicImage.style.maxWidth = settings.header.imageSize?.mobile || "80%";
                 } else if (screenWidth < 1200) {
-                    dynamicImage.style.maxWidth = settings.header.imageSize.tablet || "40%";
+                    dynamicImage.style.maxWidth = settings.header.imageSize?.tablet || "40%";
                 } else {
-                    dynamicImage.style.maxWidth = settings.header.imageSize.desktop || "40%";
+                    dynamicImage.style.maxWidth = settings.header.imageSize?.desktop || "40%";
                 }
                 dynamicImage.style.height = "auto";
             };
@@ -37,12 +48,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             window.addEventListener('resize', setImageSize);
         }
         
+        // Set basic info
         setContent('page', 'textContent', settings.name || "API ZONE");
         setContent('header', 'textContent', settings.name || "API ZONE");
         setContent('name', 'textContent', settings.name || "API ZONE");
         setContent('version', 'textContent', settings.version || "v1.0");
-        setContent('versionHeader', 'textContent', settings.header.status || "ONLINE");
+        setContent('versionHeader', 'textContent', settings.header?.status || "ONLINE");
+        setContent('description', 'textContent', settings.description || "Collection of useful APIs");
 
+        // Display API categories and items
         const apiContent = document.getElementById('apiContent');
         settings.categories.forEach((category) => {
             const sortedItems = category.items.sort((a, b) => a.name.localeCompare(b.name));
@@ -63,6 +77,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </div>
                 `;
             }).join('');
+            
             apiContent.insertAdjacentHTML('beforeend', `
                 <div class="category-section mb-4">
                     <h3 class="category-title" style="font-size: 16px; display: inline-block; background-color: var(--pixel-accent); padding: 5px 10px; border: var(--pixel-border); box-shadow: 3px 3px 0 var(--pixel-secondary);">
@@ -73,6 +88,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             `);
         });
 
+        // Search functionality
         const searchInput = document.getElementById('searchInput');
         searchInput.addEventListener('input', () => {
             const searchTerm = searchInput.value.toLowerCase();
@@ -109,7 +125,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
 
-        document.addEventListener('click', event => {
+        // API request functionality
+        document.addEventListener('click', async (event) => {
             if (!event.target.classList.contains('get-api-btn')) return;
 
             const { apiPath, apiName, apiDesc } = event.target.dataset;
@@ -124,6 +141,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 submitBtn: document.getElementById('submitQueryBtn')
             };
 
+            // Set modal content
             modalRefs.label.textContent = apiName;
             modalRefs.desc.textContent = apiDesc;
             modalRefs.content.textContent = '';
@@ -131,10 +149,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             modalRefs.spinner.classList.add('d-none');
             modalRefs.content.classList.add('d-none');
             modalRefs.endpoint.classList.add('d-none');
-
             modalRefs.queryInputContainer.innerHTML = '';
             modalRefs.submitBtn.classList.add('d-none');
 
+            // Handle API parameters if any
             let baseApiUrl = `${window.location.origin}${apiPath}`;
             let params = new URLSearchParams(apiPath.split('?')[1]);
             let hasParams = params.toString().length > 0;
@@ -154,7 +172,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     inputField.className = 'form-control';
                     inputField.placeholder = `Enter ${param}...`;
                     inputField.dataset.param = param;
-
                     inputField.required = true;
                     inputField.addEventListener('input', validateInputs);
 
@@ -162,11 +179,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     paramContainer.appendChild(paramGroup);
                 });
                 
+                // Add description if available
                 const currentItem = settings.categories
                     .flatMap(category => category.items)
                     .find(item => item.path === apiPath);
 
-                if (currentItem && currentItem.innerDesc) {
+                if (currentItem?.innerDesc) {
                     const innerDescDiv = document.createElement('div');
                     innerDescDiv.className = 'text-muted mt-2';
                     innerDescDiv.style.fontSize = '10px';
@@ -202,15 +220,16 @@ document.addEventListener('DOMContentLoaded', async () => {
                     
                     modalRefs.queryInputContainer.innerHTML = '';
                     modalRefs.submitBtn.classList.add('d-none');
-                    handleApiRequest(apiUrlWithParams, modalRefs, apiName);
+                    await handleApiRequest(apiUrlWithParams, modalRefs, apiName);
                 };
             } else {
-                handleApiRequest(baseApiUrl, modalRefs, apiName);
+                await handleApiRequest(baseApiUrl, modalRefs, apiName);
             }
 
             modal.show();
         });
 
+        // Helper function to validate inputs
         function validateInputs() {
             const submitBtn = document.getElementById('submitQueryBtn');
             const inputs = document.querySelectorAll('.param-container input');
@@ -218,6 +237,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             submitBtn.disabled = !isValid;
         }
 
+        // Helper function to handle API requests
         async function handleApiRequest(apiUrl, modalRefs, apiName) {
             modalRefs.spinner.classList.remove('d-none');
             modalRefs.content.classList.add('d-none');
@@ -230,7 +250,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
 
                 const contentType = response.headers.get('Content-Type');
-                if (contentType && contentType.startsWith('image/')) {
+                if (contentType?.startsWith('image/')) {
                     const blob = await response.blob();
                     const imageUrl = URL.createObjectURL(blob);
 
@@ -273,6 +293,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 });
 
+// Navbar scroll effect
 window.addEventListener('scroll', () => {
     const navbar = document.querySelector('.navbar');
     if (window.scrollY > 0) {
