@@ -1,3 +1,8 @@
+document.documentElement.style.setProperty('--shadow-color', 'rgba(0, 0, 0, 0.2)');
+document.documentElement.style.setProperty('--primary-color', '#a8e6cf');
+document.documentElement.style.setProperty('--secondary-color', '#333333');
+document.documentElement.style.setProperty('--accent-color', '#dcedc1');
+
 document.addEventListener('DOMContentLoaded', async () => {
     const loadingScreen = document.getElementById("loadingScreen");
     const body = document.body;
