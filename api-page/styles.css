@@ -13,6 +13,13 @@ body {
   padding: 20px;
   padding-top: 80px;
   image-rendering: pixelated;
+  opacity: 0;
+  animation: fadeIn 0.5s forwards;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Pixel Loading Screen */
@@ -28,6 +35,12 @@ body {
   justify-content: center;
   align-items: center;
   flex-direction: column;
+  animation: loadingPulse 1s infinite alternate;
+}
+
+@keyframes loadingPulse {
+  from { background-color: var(--pixel-primary); }
+  to { background-color: #4a8c4a; }
 }
 
 #loadingScreen p {
@@ -35,6 +48,12 @@ body {
   font-size: 12px;
   color: white;
   text-shadow: 2px 2px 0 var(--pixel-secondary);
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 /* Pixel Navbar */
@@ -47,6 +66,7 @@ body {
   right: 0;
   z-index: 100;
   border-bottom: var(--pixel-border);
+  box-shadow: 0 4px 0 var(--pixel-secondary);
 }
 
 .navbar-brand {
@@ -61,6 +81,12 @@ body {
   border: var(--pixel-border);
   box-shadow: 4px 4px 0 var(--pixel-secondary);
   margin-bottom: 30px;
+  transform: translateY(0);
+  transition: transform 0.3s;
+}
+
+.container:hover {
+  transform: translateY(-2px);
 }
 
 /* Pixel Buttons */
@@ -72,11 +98,28 @@ body {
   padding: 8px 16px;
   box-shadow: 2px 2px 0 var(--pixel-secondary);
   font-size: 12px;
+  transition: all 0.1s;
 }
 
 .btn-dark:hover {
   transform: translate(2px, 2px);
   box-shadow: none;
+}
+
+.btn-copy {
+  background-color: var(--pixel-accent);
+  color: var(--pixel-secondary);
+  border: var(--pixel-border);
+  border-radius: 0;
+  padding: 5px 10px;
+  font-size: 10px;
+  margin-left: 10px;
+  transition: all 0.1s;
+}
+
+.btn-copy:hover {
+  transform: translate(1px, 1px);
+  background-color: #6db06d;
 }
 
 /* Pixel API Items */
@@ -88,6 +131,12 @@ body {
   border: var(--pixel-border);
   margin-bottom: 4px;
   box-shadow: 2px 2px 0 var(--pixel-secondary);
+  transition: all 0.2s;
+}
+
+.hero-section:hover {
+  transform: translateY(-2px);
+  box-shadow: 4px 4px 0 var(--pixel-secondary);
 }
 
 /* Pixel Social Links */
@@ -96,17 +145,32 @@ body {
   justify-content: center;
   gap: 15px;
   margin-top: 30px;
+  flex-wrap: wrap;
+}
+
+.social-link {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  color: var(--pixel-secondary);
+  font-size: 10px;
+  padding: 5px 10px;
+  border: var(--pixel-border);
+  background-color: white;
+  box-shadow: 2px 2px 0 var(--pixel-secondary);
+  transition: all 0.1s;
+}
+
+.social-link:hover {
+  transform: translate(2px, 2px);
+  box-shadow: none;
 }
 
 .social-icon {
-  width: 32px;
-  height: 32px;
+  width: 20px;
+  height: 20px;
+  margin-right: 5px;
   image-rendering: pixelated;
-  transition: transform 0.1s;
-}
-
-.social-icon:hover {
-  transform: scale(1.1);
 }
 
 /* Pixel Inputs */
@@ -116,32 +180,45 @@ body {
   box-shadow: 2px 2px 0 var(--pixel-secondary);
   font-family: 'Press Start 2P', cursive;
   font-size: 12px;
+  padding: 10px;
 }
 
 #searchInput:focus {
   box-shadow: 2px 2px 0 var(--pixel-secondary);
   border: var(--pixel-border);
+  outline: none;
 }
 
 /* Pixel Modal */
 .modal-content {
   border: var(--pixel-border);
   border-radius: 0;
-  box-shadow: 4px 4px 0 var(--pixel-secondary);
+  box-shadow: 6px 6px 0 var(--pixel-secondary);
 }
 
-/* Pixel Spinner */
-.spinner-border {
-  border-width: 0.25em;
-  width: 2rem;
-  height: 2rem;
+.modal-header {
+  border-bottom: var(--pixel-border);
+  background-color: var(--pixel-accent);
 }
 
-/* Pixel Font */
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+.modal-footer {
+  border-top: var(--pixel-border);
+}
 
-h1, h2, h3, h4, h5, h6 {
-  text-shadow: 2px 2px 0 var(--pixel-accent);
+/* API Response */
+#apiEndpoint, #apiResponseContent {
+  background-color: #f8f8f8;
+  border: var(--pixel-border);
+  padding: 10px;
+  font-family: monospace;
+  font-size: 12px;
+  position: relative;
+}
+
+.copy-btn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
 }
 
 /* Responsive */
@@ -160,7 +237,7 @@ h1, h2, h3, h4, h5, h6 {
   }
   
   .social-icon {
-    width: 24px;
-    height: 24px;
+    width: 16px;
+    height: 16px;
   }
 }
