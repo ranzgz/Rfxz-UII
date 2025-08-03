@@ -50,7 +50,7 @@ function getDescriptionFromFile(filePath) {
 }
 
 // Example Express endpoint
-// app.get('/api/list', (req, res) => {
+// app.get('/api/', (req, res) => {
 //     res.json(scanAPIs());
 // });
 
