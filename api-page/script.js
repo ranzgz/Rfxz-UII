@@ -7,39 +7,89 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Load settings
         const settings = await fetch('/src/settings.json').then(res => res.json());
         
-        // Auto-detect APIs from /src/api directory
-        const apiList = await fetch('/src/api/list').then(res => res.json())
-            .catch(() => ({ categories: [] })); // Fallback if API detection fails
-
-        // Merge detected APIs with settings
-        if (apiList.categories && apiList.categories.length > 0) {
-            settings.categories = apiList.categories;
+        // Try to auto-detect APIs
+        let detectedAPIs = { categories: [] };
+        try {
+            detectedAPIs = await fetch('/api/list').then(res => res.json());
+        } catch (error) {
+            console.log("Using default APIs from settings.json");
         }
 
-        // Helper function to set content
+        // Merge detected APIs with settings
+        const mergedCategories = [...settings.categories];
+        
+        detectedAPIs.categories.forEach(detectedCategory => {
+            const existingCategoryIndex = mergedCategories.findIndex(c => 
+                c.name.toLowerCase() === detectedCategory.name.toLowerCase()
+            );
+            
+            if (existingCategoryIndex >= 0) {
+                // Merge items, avoiding duplicates
+                detectedCategory.items.forEach(detectedItem => {
+                    const exists = mergedCategories[existingCategoryIndex].items.some(item => 
+                        item.path === detectedItem.path
+                    );
+                    if (!exists) {
+                        mergedCategories[existingCategoryIndex].items.push(detectedItem);
+                    }
+                });
+            } else {
+                // Add new category
+                mergedCategories.push(detectedCategory);
+            }
+        });
+
+        // Sort categories and items
+        mergedCategories.sort((a, b) => a.name.localeCompare(b.name));
+        mergedCategories.forEach(category => {
+            category.items.sort((a, b) => a.name.localeCompare(b.name));
+        });
+
+        // Update settings with merged categories
+        settings.categories = mergedCategories;
+
+        // Set basic info from settings
         const setContent = (id, property, value) => {
             const element = document.getElementById(id);
             if (element) element[property] = value;
         };
 
-        // Set random image if available
-        const randomImageSrc = Array.isArray(settings.header.imageSrc) && settings.header.imageSrc.length > 0
-            ? settings.header.imageSrc[Math.floor(Math.random() * settings.header.imageSrc.length)]
-            : "";
+        setContent('page', 'textContent', settings.name);
+        setContent('header', 'textContent', settings.name);
+        setContent('name', 'textContent', settings.name);
+        setContent('version', 'textContent', settings.version);
+        setContent('versionHeader', 'textContent', settings.header.status);
+        setContent('description', 'textContent', settings.description);
 
+        // Set links
+        const apiLinksContainer = document.getElementById('apiLinks');
+        if (settings.links?.length > 0) {
+            settings.links.forEach(link => {
+                const linkElement = document.createElement('a');
+                linkElement.href = link.url;
+                linkElement.textContent = link.name;
+                linkElement.target = '_blank';
+                apiLinksContainer.appendChild(linkElement);
+            });
+        }
+
+        // Set random banner image
         const dynamicImage = document.getElementById('dynamicImage');
-        if (dynamicImage) {
-            dynamicImage.src = randomImageSrc;
+        if (dynamicImage && settings.header.imageSrc?.length > 0) {
+            const randomImage = settings.header.imageSrc[
+                Math.floor(Math.random() * settings.header.imageSrc.length)
+            ];
+            dynamicImage.src = randomImage;
             dynamicImage.style.imageRendering = "pixelated";
 
             const setImageSize = () => {
                 const screenWidth = window.innerWidth;
                 if (screenWidth < 768) {
-                    dynamicImage.style.maxWidth = settings.header.imageSize?.mobile || "80%";
+                    dynamicImage.style.maxWidth = settings.header.imageSize.mobile || "80%";
                 } else if (screenWidth < 1200) {
-                    dynamicImage.style.maxWidth = settings.header.imageSize?.tablet || "40%";
+                    dynamicImage.style.maxWidth = settings.header.imageSize.tablet || "40%";
                 } else {
-                    dynamicImage.style.maxWidth = settings.header.imageSize?.desktop || "40%";
+                    dynamicImage.style.maxWidth = settings.header.imageSize.desktop || "40%";
                 }
                 dynamicImage.style.height = "auto";
             };
@@ -47,85 +97,108 @@ document.addEventListener('DOMContentLoaded', async () => {
             setImageSize();
             window.addEventListener('resize', setImageSize);
         }
-        
-        // Set basic info
-        setContent('page', 'textContent', settings.name || "API ZONE");
-        setContent('header', 'textContent', settings.name || "API ZONE");
-        setContent('name', 'textContent', settings.name || "API ZONE");
-        setContent('version', 'textContent', settings.version || "v1.0");
-        setContent('versionHeader', 'textContent', settings.header?.status || "ONLINE");
-        setContent('description', 'textContent', settings.description || "Collection of useful APIs");
 
         // Display API categories and items
         const apiContent = document.getElementById('apiContent');
-        settings.categories.forEach((category) => {
-            const sortedItems = category.items.sort((a, b) => a.name.localeCompare(b.name));
-            const categoryContent = sortedItems.map((item, index, array) => {
-                const isLastItem = index === array.length - 1;
-                const itemClass = `col-md-6 col-lg-4 api-item ${isLastItem ? 'mb-4' : 'mb-2'}`;
-                return `
-                    <div class="${itemClass}" data-name="${item.name}" data-desc="${item.desc}">
-                        <div class="hero-section d-flex align-items-center justify-content-between">
-                            <div>
-                                <h5 class="mb-0" style="font-size: 14px;">${item.name}</h5>
-                                <p class="mb-0" style="font-size: 10px;">${item.desc}</p>
-                            </div>
-                            <button class="btn btn-dark btn-sm get-api-btn" data-api-path="${item.path}" data-api-name="${item.name}" data-api-desc="${item.desc}">
-                                GET
-                            </button>
-                        </div>
+        apiContent.innerHTML = '';
+
+        // Create category filter buttons
+        const filterContainer = document.querySelector('.category-filters');
+        
+        // Add "All" button
+        const allButton = document.createElement('button');
+        allButton.className = 'category-filter active';
+        allButton.textContent = 'All';
+        allButton.dataset.filter = 'all';
+        filterContainer.appendChild(allButton);
+
+        // Add buttons for each category
+        settings.categories.forEach(category => {
+            const button = document.createElement('button');
+            button.className = 'category-filter';
+            button.textContent = category.name;
+            button.dataset.filter = category.name.toLowerCase().replace(/[^a-z]/g, '');
+            filterContainer.appendChild(button);
+        });
+
+        // Add API items
+        settings.categories.forEach(category => {
+            const categorySection = document.createElement('div');
+            categorySection.className = 'category-section mb-5';
+            categorySection.dataset.category = category.name.toLowerCase().replace(/[^a-z]/g, '');
+
+            const categoryHeader = document.createElement('h2');
+            categoryHeader.className = 'category-header';
+            categoryHeader.textContent = category.name;
+            categorySection.appendChild(categoryHeader);
+
+            const categoryGrid = document.createElement('div');
+            categoryGrid.className = 'row';
+            
+            category.items.forEach(item => {
+                const itemElement = document.createElement('div');
+                itemElement.className = 'col-md-6 col-lg-4 mb-3 api-item';
+                itemElement.dataset.category = category.name.toLowerCase().replace(/[^a-z]/g, '');
+                itemElement.innerHTML = `
+                    <div class="api-card">
+                        <h3>${item.name}</h3>
+                        <p class="api-desc">${item.desc}</p>
+                        <button class="btn btn-dark get-api-btn" 
+                                data-api-path="${item.path}" 
+                                data-api-name="${item.name}" 
+                                data-api-desc="${item.desc}">
+                            TEST API
+                        </button>
+                        ${item.innerDesc ? `<p class="api-info">${item.innerDesc}</p>` : ''}
                     </div>
                 `;
-            }).join('');
-            
-            apiContent.insertAdjacentHTML('beforeend', `
-                <div class="category-section mb-4">
-                    <h3 class="category-title" style="font-size: 16px; display: inline-block; background-color: var(--pixel-accent); padding: 5px 10px; border: var(--pixel-border); box-shadow: 3px 3px 0 var(--pixel-secondary);">
-                        ${category.name}
-                    </h3>
-                    <div class="row mt-3">${categoryContent}</div>
-                </div>
-            `);
+                categoryGrid.appendChild(itemElement);
+            });
+
+            categorySection.appendChild(categoryGrid);
+            apiContent.appendChild(categorySection);
+        });
+
+        // Category filter functionality
+        document.querySelectorAll('.category-filter').forEach(button => {
+            button.addEventListener('click', () => {
+                document.querySelectorAll('.category-filter').forEach(btn => 
+                    btn.classList.remove('active')
+                );
+                button.classList.add('active');
+                
+                const filter = button.dataset.filter;
+                document.querySelectorAll('.category-section, .api-item').forEach(el => {
+                    if (filter === 'all') {
+                        el.style.display = '';
+                    } else {
+                        el.style.display = el.dataset.category === filter ? '' : 'none';
+                    }
+                });
+            });
         });
 
         // Search functionality
         const searchInput = document.getElementById('searchInput');
         searchInput.addEventListener('input', () => {
             const searchTerm = searchInput.value.toLowerCase();
-            const apiItems = document.querySelectorAll('.api-item');
-            const categorySections = document.querySelectorAll('.category-section');
-
-            apiItems.forEach(item => {
-                const name = item.getAttribute('data-name').toLowerCase();
-                const desc = item.getAttribute('data-desc').toLowerCase();
-                item.style.display = (name.includes(searchTerm) || desc.includes(searchTerm)) ? '' : 'none';
-            });
-
-            categorySections.forEach(section => {
-                const visibleItems = section.querySelectorAll('.api-item:not([style*="display: none"])');
-                section.style.display = visibleItems.length ? '' : 'none';
-            });
-        });
-
-        // Copy button functionality
-        document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('copy-btn')) {
-                const targetId = e.target.getAttribute('data-target');
-                const content = document.getElementById(targetId).textContent;
-                navigator.clipboard.writeText(content);
+            document.querySelectorAll('.api-item').forEach(item => {
+                const name = item.querySelector('h3').textContent.toLowerCase();
+                const desc = item.querySelector('.api-desc').textContent.toLowerCase();
+                const isVisible = name.includes(searchTerm) || desc.includes(searchTerm);
+                item.style.display = isVisible ? '' : 'none';
                 
-                // Visual feedback
-                const originalText = e.target.textContent;
-                e.target.textContent = 'COPIED!';
-                e.target.style.backgroundColor = '#5c9e5c';
-                setTimeout(() => {
-                    e.target.textContent = originalText;
-                    e.target.style.backgroundColor = '';
-                }, 1000);
-            }
+                // Show/hide category headers based on visible items
+                const categorySection = item.closest('.category-section');
+                if (categorySection) {
+                    const hasVisibleItems = Array.from(categorySection.querySelectorAll('.api-item'))
+                        .some(i => i.style.display !== 'none');
+                    categorySection.style.display = hasVisibleItems ? '' : 'none';
+                }
+            });
         });
 
-        // API request functionality
+        // API modal functionality
         document.addEventListener('click', async (event) => {
             if (!event.target.classList.contains('get-api-btn')) return;
 
@@ -173,7 +246,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     inputField.placeholder = `Enter ${param}...`;
                     inputField.dataset.param = param;
                     inputField.required = true;
-                    inputField.addEventListener('input', validateInputs);
+                    inputField.addEventListener('input', () => {
+                        const inputs = modalRefs.queryInputContainer.querySelectorAll('input');
+                        const isValid = Array.from(inputs).every(input => input.value.trim() !== '');
+                        modalRefs.submitBtn.disabled = !isValid;
+                    });
 
                     paramGroup.appendChild(inputField);
                     paramContainer.appendChild(paramGroup);
@@ -229,14 +306,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             modal.show();
         });
 
-        // Helper function to validate inputs
-        function validateInputs() {
-            const submitBtn = document.getElementById('submitQueryBtn');
-            const inputs = document.querySelectorAll('.param-container input');
-            const isValid = Array.from(inputs).every(input => input.value.trim() !== '');
-            submitBtn.disabled = !isValid;
-        }
-
         // Helper function to handle API requests
         async function handleApiRequest(apiUrl, modalRefs, apiName) {
             modalRefs.spinner.classList.remove('d-none');
@@ -279,8 +348,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                 modalRefs.spinner.classList.add('d-none');
             }
         }
+
+        // Copy button functionality
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('copy-btn')) {
+                const targetId = e.target.getAttribute('data-target');
+                const content = document.getElementById(targetId).textContent;
+                navigator.clipboard.writeText(content);
+                
+                // Visual feedback
+                const originalText = e.target.textContent;
+                e.target.textContent = 'COPIED!';
+                e.target.style.backgroundColor = '#5c9e5c';
+                setTimeout(() => {
+                    e.target.textContent = originalText;
+                    e.target.style.backgroundColor = '';
+                }, 1000);
+            }
+        });
+
     } catch (error) {
-        console.error('Error loading settings:', error);
+        console.error('Error loading API data:', error);
     } finally {
         setTimeout(() => {
             loadingScreen.style.opacity = 0;
@@ -289,7 +377,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 body.classList.remove("no-scroll");
                 body.style.opacity = 1;
             }, 500);
-        }, 1500);
+        }, 1000);
     }
 });
 
